@@ -8,7 +8,7 @@ from openrouteservice import client
 
 from shapely import geometry
 from shapely.geometry import shape, Polygon, mapping, MultiPolygon, LineString, Point
-
+import pandas as pd
 # Open route service connection
 # You have to create a profile on the website then in the Pane Dashboard you should create a new token
 api_key = '5b3ce3597851110001cf6248d14c60f017174b11b170ff63fdbf48b3'
@@ -77,7 +77,7 @@ result_nodes = api.query("(node['shop']{0};node['amenity']{0};);out;".format(str
 # This query should be modified to be extended to other tags
 len(result_nodes.nodes)
 
-result_areas = api.query("(node['shop']{0};node['amenity']{0};);out;".format(str(poly_box.exterior.bounds)))
+result_areas = api.query("(areas['shop']{0};areas['amenity']{0};);out;".format(str(poly_box.exterior.bounds)))
 # This query should be modified to be extended to other tags
 len(result_areas.areas)
 
@@ -96,16 +96,54 @@ areas_amenity = set([extract_object(area) for area in result_areas.areas])
 
 # 5. Filter the POI in the box to keep only the points to be avoid
 # 6. Cluster and score dangerous areas
+
+#I did not use the above lists. What I try to do is to expand the tags of
+#each node, adding the danger score provided in the csv file.
+
+#Loading the csv
+dang_list = pd.read_csv('DangerScoreList.csv', delimiter=',')
+
+#Defining the function to add the score:
+
+def add_score(results):
+    nodes = [node for node in results.nodes]
+    for node in nodes:
+        if 'amenity' in node.tags:
+            #I create a new key in the tags dictionary, called dangerscore, whose value correspond to the score in the
+            #csv file for the type of amenity or shop the node is.
+            node.tags['dangerscore'] = dang_list.loc[dang_list['tags'] == node.tags['amenity']]['dangerscore'].item()
+        else:
+            node.tags['dangerscore'] = dang_list.loc[dang_list['tags'] == node.tags['shop']]['dangerscore'].item()
+    return nodes
+nodes_score = add_score(result_nodes) #nodes_score is a list of overpy objects, with lat and lon info,
+# which can then be used in the routing.
+
+#Here I try to reconstruct the element in the example code
+dangers_poly = [] #sites_poly
+
+#I define dangerous a POI with score greater than 1
+for node in nodes_score:
+    if node.tags['dangerscore'] != '1':
+        lat = node.lat
+        lon = node.lon
+
+        dangers_poly_coords = Point(lon, lat).buffer(0.0025).simplify(0.05)
+        dangers_poly.append(dangers_poly_coords)
+
+
 # TODO I need your help here fellow data scientists
 
-
+danger_buffer_poly = [] #site_buffer_poly, which is the input for the avoid polygon option
+for danger_poly in dangers_poly:
+    poly = Polygon(danger_poly)
+    danger_buffer_poly.append(poly)
 # 7.Request the route
 route_request = {'coordinates': [[geocod_start.lng, geocod_start.lat], [geocod_end.lng, geocod_end.lat]], # Careful long then lat and not lat then long
                  'format_out': 'geojson',
                  'profile': 'foot-walking',
                  'preference': 'shortest',
-                 'instructions': False}
-#                 'options': {'avoid_polygons': geometry.mapping(MultiPolygon(avoided_point_list))}}
+                 'instructions': False,
+                'options': {'avoid_polygons': geometry.mapping(MultiPolygon(danger_buffer_poly))}}
 # TODO Integrate with the decided areas to be avoided
 route_directions = clnt.directions(**route_request)
 
