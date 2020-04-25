@@ -77,7 +77,7 @@ result_nodes = api.query("(node['shop']{0};node['amenity']{0};);out;".format(str
 # This query should be modified to be extended to other tags
 len(result_nodes.nodes)
 
-result_areas = api.query("(areas['shop']{0};areas['amenity']{0};);out;".format(str(poly_box.exterior.bounds)))
+result_areas = api.query("(area['shop']{0};area['amenity']{0};);out;".format(str(poly_box.exterior.bounds)))
 # This query should be modified to be extended to other tags
 len(result_areas.areas)
 
@@ -101,7 +101,7 @@ areas_amenity = set([extract_object(area) for area in result_areas.areas])
 #each node, adding the danger score provided in the csv file.
 
 #Loading the csv
-dang_list = pd.read_csv('DangerScoreList.csv', delimiter=',')
+dang_list = pd.read_csv('C:/Users/daphn/Documents/EUvsVirus/hackathon_exchange/DangerScoreList.csv', delimiter=',')
 
 #Defining the function to add the score:
 
@@ -137,6 +137,7 @@ danger_buffer_poly = [] #site_buffer_poly, which is the input for the avoid poly
 for danger_poly in dangers_poly:
     poly = Polygon(danger_poly)
     danger_buffer_poly.append(poly)
+
 # 7.Request the route
 route_request = {'coordinates': [[geocod_start.lng, geocod_start.lat], [geocod_end.lng, geocod_end.lat]], # Careful long then lat and not lat then long
                  'format_out': 'geojson',
@@ -144,12 +145,12 @@ route_request = {'coordinates': [[geocod_start.lng, geocod_start.lat], [geocod_e
                  'preference': 'shortest',
                  'instructions': False,
                 'options': {'avoid_polygons': geometry.mapping(MultiPolygon(danger_buffer_poly))}}
+
 # TODO Integrate with the decided areas to be avoided
 route_directions = clnt.directions(**route_request)
 
 # 8.Display the route and the dangerous points
 import folium
-from folium import
 import webbrowser
 
 map = folium.Map(tiles='Stamen Toner', location=([geocod_start.lat, geocod_start.lng]), zoom_start=14) # Create map
@@ -164,6 +165,9 @@ folium.Marker([geocod_end.lat, geocod_end.lng], popup='<i>End</i>').add_to(map)
 folium.features.GeoJson(data=route_directions,
                         name='Route',
                         overlay=True).add_to(map)
+
+# Plotting the dangerous areas
+folium.features.GeoJson(data=geometry.mapping(MultiPolygon(danger_buffer_poly)), overlay=True).add_to(map)
 
 # Plotting the area under investigation
 folium.Polygon(
