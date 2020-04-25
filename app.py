@@ -15,8 +15,10 @@ import dash_html_components as html
 import folium
 from openrouteservice import client
 
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css', 'https://codepen.io/chriddyp/pen/brPBPO.css']
 app = dash.Dash(
-    __name__, meta_tags=[{"name": "viewport", "content": "width=device-width"}]
+    __name__, meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1.0"}],
+    external_stylesheets=external_stylesheets
 )
 
 # Process
@@ -202,7 +204,6 @@ def update_map(n_clicks, add_start, add_end):
         map.save(updated_map_path)
 
         return open(updated_map_path, 'r').read()
-
 
 
 if __name__ == "__main__":
