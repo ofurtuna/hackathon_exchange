@@ -104,16 +104,22 @@ areas_amenity = set([extract_object(area) for area in result_areas.areas])
 dang_list = pd.read_csv('C:/Users/daphn/Documents/EUvsVirus/hackathon_exchange/DangerScoreList.csv', delimiter=',')
 
 #Defining the function to add the score:
-
+#brute force approach to handling missing amenities in csv
 def add_score(results):
     nodes = [node for node in results.nodes]
+
     for node in nodes:
         if 'amenity' in node.tags:
-            #I create a new key in the tags dictionary, called dangerscore, whose value correspond to the score in the
-            #csv file for the type of amenity or shop the node is.
-            node.tags['dangerscore'] = dang_list.loc[dang_list['tags'] == node.tags['amenity']]['dangerscore'].item()
+            try:
+                node.tags['dangerscore'] = dang_list.loc[dang_list['tags'] == node.tags['amenity']][
+                    'dangerscore'].item()
+            except:
+                pass
         else:
-            node.tags['dangerscore'] = dang_list.loc[dang_list['tags'] == node.tags['shop']]['dangerscore'].item()
+            try:
+                node.tags['dangerscore'] = dang_list.loc[dang_list['tags'] == node.tags['shop']]['dangerscore'].item()
+            except:
+                pass
     return nodes
 nodes_score = add_score(result_nodes) #nodes_score is a list of overpy objects, with lat and lon info,
 # which can then be used in the routing.
@@ -122,14 +128,16 @@ nodes_score = add_score(result_nodes) #nodes_score is a list of overpy objects, 
 dangers_poly = [] #sites_poly
 
 #I define dangerous a POI with score greater than 1
+#brute force approach to handling missing amenities in csv
 for node in nodes_score:
-    if node.tags['dangerscore'] != '1':
-        lat = node.lat
-        lon = node.lon
-
-        dangers_poly_coords = Point(lon, lat).buffer(0.0025).simplify(0.05)
-        dangers_poly.append(dangers_poly_coords)
-
+    try:
+        if node.tags['dangerscore'] != '1':
+            lat= node.lat
+            lon = node.lon
+            dangers_poly_coords = Point(lon,lat).buffer(0.0001).simplify(0.05)
+            dangers_poly.append(dangers_poly_coords)
+    except:
+        pass
 
 # TODO I need your help here fellow data scientists
 
@@ -153,27 +161,26 @@ route_directions = clnt.directions(**route_request)
 import folium
 import webbrowser
 
-map = folium.Map(tiles='Stamen Toner', location=([geocod_start.lat, geocod_start.lng]), zoom_start=14) # Create map
+def style_function(color):
+    return lambda feature: dict(color=color,
+                              weight=3,
+                              opacity=1)
+ #6.Display the route and the dangerous points
+        # Create the base map
+map = folium.Map(tiles='Stamen Toner', location=([geocod_start.lat, geocod_start.lng]), zoom_start=14)  # Create map
 
-test_output = "C:/Users/daphn/Documents/EUvsVirus/visu/test.html"
-
-# Create points on the map for start and end
+        # Beginning and end markers
 folium.Marker([geocod_start.lat, geocod_start.lng], popup='<i>Start</i>').add_to(map)
 folium.Marker([geocod_end.lat, geocod_end.lng], popup='<i>End</i>').add_to(map)
 
-# Draw the route
+        # Plotting the dangerous areas
+folium.features.GeoJson(data=mapping(MultiPolygon(danger_buffer_poly)),
+                        style_function=style_function('red'),
+                        overlay=True).add_to(map)
+        # Plotting the area of search
 folium.features.GeoJson(data=route_directions,
                         name='Route',
                         overlay=True).add_to(map)
-
-# Plotting the dangerous areas
-folium.features.GeoJson(data=geometry.mapping(MultiPolygon(danger_buffer_poly)), overlay=True).add_to(map)
-
-# Plotting the area under investigation
-folium.Polygon(
-    list(poly_box.exterior.coords),
-    name='boundarybix'
-).add_to(map)
 
 # I use Pycharm and the map cannot be displayed there so save then open in browser but if you use notebooks just go for map
 map.save(test_output)
